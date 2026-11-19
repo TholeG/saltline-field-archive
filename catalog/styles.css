@@ -725,7 +725,7 @@ kbd {
   color: var(--orange);
 }
 pre {
-  font: 11px/1.75 var(--mono);
+  font: 12px/1.65 var(--mono);
   margin: 0;
   padding: 20px;
   background: #0d120f;

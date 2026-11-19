@@ -13,6 +13,37 @@ import {
 } from "./i18n.js";
 
 const api = globalThis.SaltlineCatalog;
+const groundMode = new URLSearchParams(location.search).get("ground");
+let catalogKernels;
+let catalogGeometry;
+
+function prepareCatalogGeometry() {
+  if (groundMode === "js" || groundMode === "original") return null;
+  return (catalogGeometry ??= import("../engine/objects.js")
+    .then(({ prepareObjectGeometry }) => prepareObjectGeometry())
+    .then((geometry) => {
+      if (geometry) {
+        api.setObjectGeometry(geometry);
+        performance.mark("saltline:object-geometry:wasm");
+      }
+    })
+    .catch(() => {}));
+}
+
+function prepareCatalogKernels() {
+  if (groundMode === "js" || groundMode === "original") return null;
+  return (catalogKernels ??= import("../ground/runtime.js")
+    .then(({ prepareGameKernels }) => prepareGameKernels())
+    .then((kernels) => {
+      if (kernels) {
+        api.setGameKernels(kernels);
+        performance.mark("saltline:catalog-kernels:wasm");
+      }
+      return kernels;
+    })
+    .catch(() => null));
+}
+
 const $ = (id) => document.getElementById(id);
 const escape = (value) =>
   String(value).replace(
@@ -35,10 +66,12 @@ let activeEntry,
 let currentSignal = null,
   activeSound = null,
   waveformProgress = 0;
+let formattedSources;
+let updateSelectedSource = () => {};
 const counts = {
   props: entries.filter((e) => e.kind === "prop").length,
   sounds: Object.keys(api.audioBank).length,
-  functions: Object.keys(api.functions).length,
+  functions: Object.keys(api.source.locations).length,
 };
 function renderCounts() {
   $("counts").innerHTML = [
@@ -113,6 +146,7 @@ function setTab(name, focus = false) {
     $("tab-" + key).tabIndex = selected ? 0 : -1;
     $("panel-" + key).hidden = !selected;
   }
+  if (name === "source") updateSelectedSource();
   if (focus) $("tab-" + name).focus();
 }
 document.querySelector(".detail-tabs").addEventListener("click", (event) => {
@@ -150,26 +184,32 @@ function renderMath(entry) {
     `<p class="reading-note">${t("Die Formeln erläutern die Originalimplementierung. Vereinfachungen und Auszüge sind beschrieben. Der Tab „Quellcode“ enthält die ausführbaren Funktionen mit ihren ursprünglichen Variablennamen.")}</p>`;
 }
 function sourceNames(entry) {
-  const names = [...entry.sources];
+  const names = new Set(entry.sources);
   for (const f of entry.formulas)
     for (const name of f.sources)
-      if (api.functions[name] && !names.includes(name)) names.push(name);
+      if (Object.hasOwn(api.source.locations, name)) names.add(name);
   // Include direct application dependencies, while retaining the primary constructor first.
   for (const name of [...names]) {
-    const code = api.functions[name]?.toString() || "";
-    for (const match of code.matchAll(/([\w$]+)\s*\(/g))
-      if (Object.hasOwn(api.functions, match[1]) && !names.includes(match[1]))
-        names.push(match[1]);
+    for (const dependency of api.source.dependencies[name] ?? []) {
+      names.add(dependency);
+    }
   }
-  return names;
+  return [...names];
 }
 function renderSource(entry) {
   const functions = sourceNames(entry);
   const constants = entry.constants || [];
   $("panel-source").innerHTML =
     `<div class="source-tools"><select id="source-select" aria-label="${t("Quellfunktion auswählen")}">${functions.map((n) => `<option value="${escape(n)}">${escape(n)}(…)</option>`).join("")}${constants.map((n) => `<option value="constant:${n}">${escape(t("Parameter: {name}", { name: n }))}</option>`).join("")}${entry.kind === "prop" ? `<option value="constant:Yi">${t("Parameter: {name}", { name: "PROP_SIZES / Yi" })}</option>` : ""}${entry.kind === "sound" ? `<option value="sound-spec">${t("Parameter: {name}", { name: t("Soundbank-Eintrag") })}</option>` : ""}</select><button type="button" id="copy-source">${t("Code kopieren")}</button></div><div class="source-location" id="source-location"></div><pre><code id="source-code"></code></pre>`;
-  function update() {
-    const name = $("source-select").value;
+  const select = $("source-select");
+  const output = $("source-code");
+  const provenance = $("source-location");
+  const copy = $("copy-source");
+  async function update() {
+    if (tab !== "source") return;
+    const name = select.value;
+    copy.disabled = true;
+    copy.textContent = t("Code kopieren");
     let code, location;
     if (name.startsWith("constant:")) {
       const key = name.slice(9);
@@ -186,21 +226,30 @@ function renderSource(entry) {
         t("{name} aus game.js", { name: `Ir.${entry.soundId}` }),
       );
     } else {
-      code = api.functions[name].toString();
+      formattedSources ??= import("./source-code.js")
+        .then(({ sourceHash, snippets }) =>
+          sourceHash === api.source.sha256 ? snippets : null,
+        )
+        .catch(() => null);
+      const snippets = await formattedSources;
+      if (select.value !== name || !select.isConnected) return;
+      code = snippets?.[name] ?? "";
       const source = api.source.locations[name];
       location = `<a href="game.js" target="_blank" rel="noopener">game.js</a> · ${escape(name)} · ${escape(t("Originalzeile {line} · Byte {byte}", { line: source?.line ?? "?", byte: source?.byte ?? "?" }))}<br>${escape(t("Für die Lesbarkeit formatiert. SHA-256 der Quelldatei: {hash}", { hash: api.source.sha256 }))}`;
     }
-    $("source-code").textContent = code;
-    $("source-location").innerHTML = location;
+    output.textContent = code;
+    output.parentElement.scrollTo(0, 0);
+    provenance.innerHTML = location;
+    copy.disabled = !code;
   }
-  $("source-select").addEventListener("change", update);
-  update();
-  $("copy-source").addEventListener("click", async () => {
+  updateSelectedSource = update;
+  select.addEventListener("change", update);
+  copy.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText($("source-code").textContent);
-      $("copy-source").textContent = t("Kopiert ✓");
+      await navigator.clipboard.writeText(output.textContent);
+      copy.textContent = t("Kopiert ✓");
     } catch {
-      $("copy-source").textContent = t("Bitte Code markieren");
+      copy.textContent = t("Bitte Code markieren");
     }
   });
 }
@@ -233,7 +282,9 @@ class CatalogAudio {
     if (this.cache.has(key)) return this.cache.get(key);
     if (this.pending.has(key)) return this.pending.get(key);
     const pending = (async () => {
-      // Yield between original generator steps so long ambience sounds keep the UI usable.
+      const kernels = await prepareCatalogKernels();
+      await kernels?.audio.prepare();
+      // Yield between synthesis steps so the interface can update.
       const generator = api.synthesizeSteps(name, variant);
       if (!generator)
         throw new Error(t("Klang nicht gefunden: {name}", { name }));
@@ -661,7 +712,7 @@ class ObjectViewer {
     node.userData.catalogMaterial = true;
     return node;
   }
-  async show(entry, options = {}) {
+  async show(entry, options = {}, kernels) {
     await this.ready;
     this.clear();
     const T = this.T;
@@ -738,13 +789,22 @@ class ObjectViewer {
       object = new T.Mesh(geometry, this.material(0x7caaa0));
       object.userData.catalogMaterial = true;
       const positions = geometry.attributes.position;
+      const {
+        Og: waves,
+        Kn: { seaY },
+      } = api.constants;
       this.animate = () => {
-        for (let i = 0; i < positions.count; i++)
-          positions.setY(
-            i,
-            api.waves(positions.getX(i), positions.getZ(i), this.game.time.t) -
-              api.constants.Kn.seaY,
-          );
+        const time = this.game.time.t;
+        if (kernels) {
+          kernels.water.updateSurface(waves, seaY, positions.array, time);
+        } else {
+          for (let i = 0; i < positions.count; i++) {
+            positions.setY(
+              i,
+              api.waves(positions.getX(i), positions.getZ(i), time) - seaY,
+            );
+          }
+        }
         positions.needsUpdate = true;
         geometry.computeVertexNormals();
       };
@@ -1119,9 +1179,18 @@ async function updatePreview() {
   $("stage-status").textContent = t("GEOMETRIE WIRD ERZEUGT");
   try {
     if (!viewer) viewer = new ObjectViewer();
-    await viewer.ready;
+    const [kernels] = await Promise.all([
+      entry.kind === "waves" ? prepareCatalogKernels() : null,
+      entry.kind === "prop" ||
+      entry.kind === "backdrop" ||
+      entry.primitive === "tube" ||
+      entry.primitive === "box"
+        ? prepareCatalogGeometry()
+        : null,
+      viewer.ready,
+    ]);
     if (version !== renderVersion) return;
-    await viewer.show(entry, options());
+    await viewer.show(entry, options(), kernels);
     if (version !== renderVersion) return;
   } catch (error) {
     if (version !== renderVersion) return;

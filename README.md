@@ -86,7 +86,7 @@ Dropdown menus use the catalog's styling and stay inside the browser viewport, o
 
 ## Development and checks
 
-Development dependencies are only needed to regenerate the formula assets:
+Install development dependencies to regenerate the formula assets or formatted source excerpts:
 
 ```sh
 bun install --frozen-lockfile
@@ -115,6 +115,39 @@ This checks translation coverage in all three languages, stable object/sound ass
 
 Browser checks have additionally covered all 131 entries in each language, blocked external requests, mobile layouts, dropdown positioning, keyboard/touch interaction, saved language selection, audio playback, and WAV export. Game checks cover startup and rendering; no complete playthrough has been performed.
 
+## Ground texture
+
+When served by Bun, the game generates its RGBA ground mask, detail texture, and normal texture with the Rust/WebAssembly kernel. The optimized JavaScript generator takes over if the module cannot load or run. Open `/?ground=js` or `/?ground=original` to compare implementations.
+
+The repository includes the ready-to-use WASM file. Rebuilding requires Rust with the `wasm32-unknown-unknown` target. The check compares every RGBA value with `game.js`. It covers the mask at 512² and 1024² and the detail and normal textures at 256² and 512².
+
+```sh
+bun run ground:build
+bun run objects:build
+bun run audio:build
+bun run ground:check
+```
+
+In the local build, the same WASM module stores colliders and builds the navigation grid. Rust handles pathfinding, waypoint smoothing, walkability checks, and random destinations. It also handles line of sight, collision rays, floor heights, standing clearance, capsule movement, and player gravity. A separate Rust/WASM audio module synthesizes all 79 sounds and 136 variants, including music, rain, sea, and impulse responses. A browser worker prepares longer sounds. Web Audio handles spatial mixing and playback. `/?ground=js` uses the optimized JavaScript textures and the original JavaScript game kernels. `/?ground=original` also uses the original texture generators. The embedded earlier version can be loaded at `/legacy-v8.html`.
+
+Rust also computes player movement, landing and damage, weapon fire and reloading, gull and hound locomotion and attack phases, and the rules for relays, reinforcements, and holdout waves. The browser integration handles input, game events, the user interface, and visual effects.
+
+`engine/objects.wasm` generates revolved profiles, plain, beveled and rounded boxes, cylinders, corrugated profiles, swept surfaces, and curved tube meshes for the game and catalog. It also generates extruded outlines, straps and tarp geometry, computes tire UVs, and deforms sandbag and carton meshes with smoothed normals. The catalog loads it when an object preview opens. The formatted original functions load when the source tab opens.
+
+For the larger harbor models, the same module computes hull points, normals and panels for the cargo ship, the hull and inflatable collar for the boat, and rounded crane components.
+
+All 36 harbor props use Rust during mesh construction. The module assembles compatible geometry buffers and triangle indices, transforms positions and normals, and recalculates normals when needed. It computes procedural wear for 19 models and side-panel colors for all three container sizes.
+
+Rust supplies the scene plans for the yard, gate, quay, and workshop props. It computes container stacks, fences, crane rails, orientations, and colliders, and selects material variants, shadows, and mesh groups for the static scene. WASM animates the relay doors and rotor, crane spreader, radar, boat, and workshop fan. Three.js instantiates scene objects, materials, and textures for rendering.
+
+```sh
+bun run kernels:check
+```
+
+## Rust/WASM experiment
+
+Tidewatch is a standalone harbor prototype served by the local Bun server. The guide covers the objective, controls, and build. [Open Tidewatch](http://127.0.0.1:3000/experiment/index.html) · [Experiment guide](experiment/README.md)
+
 ## Project layout
 
 | Path | Purpose |
@@ -123,9 +156,11 @@ Browser checks have additionally covered all 131 entries in each language, block
 | `catalog/data.js`, `catalog/latex.js` | Entry definitions and mathematical equations |
 | `catalog/i18n.js`, `catalog/content-i18n.js` | English, German, and Chinese interface/content |
 | `catalog/select.js` | In-page dropdown menus |
-| `catalog/engine.js`, `catalog/math.js` | Generated engine exports and typeset formula markup |
+| `catalog/engine.js`, `catalog/math.js`, `catalog/source-code.js` | Generated engine exports, typeset formulas, and formatted source excerpts |
 | `catalog/manifest.json` | Source SHA-256 and original function locations |
 | `scripts/` | Extraction, formula generation, and verification |
+| `ground/` | Ground masks and textures in Rust/WASM and JavaScript |
+| `experiment/` | Tidewatch, the standalone Rust/WASM prototype |
 | `index.html`, `game.js`, `ui.css` | Local game page, original JavaScript bundle, and game styles |
 | `assets/`, `licenses/` | Local fonts, KaTeX assets, and component licenses |
 | `original/`, `source.json` | Original artifact, public metadata, and download provenance |

@@ -7,9 +7,16 @@
     "dev": "bun --watch server.ts",
     "catalog:extract": "bun scripts/extract-catalog.ts",
     "catalog:check": "bun scripts/check-catalog.ts",
-    "catalog:math": "bun scripts/render-catalog-math.ts"
+    "catalog:math": "bun scripts/render-catalog-math.ts",
+    "ground:build": "rustc --edition 2024 --target wasm32-unknown-unknown --crate-type cdylib -C opt-level=3 -C lto=fat -C panic=abort -C strip=symbols ground/mask.rs -o ground/mask.wasm && chmod 644 ground/mask.wasm",
+    "objects:build": "rustc --edition 2024 --target wasm32-unknown-unknown --crate-type cdylib -C opt-level=3 -C lto=fat -C panic=abort -C strip=symbols engine/objects.rs -o engine/objects.wasm && chmod 644 engine/objects.wasm",
+    "audio:build": "rustc --edition 2024 --target wasm32-unknown-unknown --crate-type cdylib -C opt-level=z -C lto=fat -C panic=abort -C strip=symbols engine/audio/mod.rs -o engine/audio.wasm && chmod 644 engine/audio.wasm",
+    "ground:check": "bun scripts/check-ground.ts",
+    "kernels:check": "bun scripts/check-kernels.ts"
   },
   "devDependencies": {
-    "katex": "0.19.1"
+    "@babel/core": "8.1.2",
+    "katex": "0.19.1",
+    "prettier": "3.10.1"
   }
 }

@@ -8,5 +8,10 @@ ui.css -text linguist-vendored
 catalog/engine.js linguist-generated
 catalog/math.js linguist-generated
 catalog/manifest.json linguist-generated
+catalog/source-code.js linguist-generated
+ground/mask.wasm binary linguist-generated
+engine/objects.wasm binary linguist-generated
+experiment/pkg/tidewatch.js linguist-generated
+experiment/pkg/tidewatch_bg.wasm binary linguist-generated
 
 *.md text eol=lf

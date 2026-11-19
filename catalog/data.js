@@ -545,7 +545,9 @@ export function buildEntries(api, language = getLanguage()) {
       {
         ...entry,
         number: String(index + 1).padStart(3, "0"),
-        sources: [...new Set(entry.sources)].filter((n) => api.functions[n]),
+        sources: [...new Set(entry.sources)].filter((name) =>
+          Object.hasOwn(api.source.locations, name),
+        ),
       },
       language,
     ),

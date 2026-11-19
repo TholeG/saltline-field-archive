@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
-import { runInNewContext } from "node:vm";
+import { Script, runInNewContext } from "node:vm";
 import { buildEntries } from "../catalog/data.js";
 import { mathMarkup } from "../catalog/math.js";
 import { languages, messages, getLanguage } from "../catalog/i18n.js";
+import { snippets, sourceHash } from "../catalog/source-code.js";
 
 const root = resolve(import.meta.dir, "..");
 const original = await Bun.file(resolve(root, "game.js")).text();
@@ -45,6 +46,19 @@ check(
   catalog.source.sha256 === hash,
   "Die Engine gehört nicht zum aktuellen Quellcode.",
 );
+check(sourceHash === hash, "Die formatierte Quellansicht ist veraltet.");
+const functionNames = Object.keys(catalog.source.locations);
+check(
+  Object.keys(snippets).length === functionNames.length,
+  "Formatierte Quellfunktionen fehlen.",
+);
+for (const name of functionNames) {
+  check(
+    Object.hasOwn(snippets, name),
+    `Formatierte Quellfunktion fehlt: ${name}`,
+  );
+  new Script(snippets[name], { filename: `catalog/source-code.js#${name}` });
+}
 const sourceBytes = new TextEncoder().encode(original);
 for (const [name, location] of Object.entries(catalog.source.locations) as [
   string,
@@ -129,7 +143,7 @@ check(
 );
 for (const entry of entries) {
   check(
-    catalog.functions[entry.builder],
+    Object.hasOwn(catalog.source.locations, entry.builder),
     `Quellfunktion fehlt: ${entry.id} / ${entry.builder}`,
   );
   check(

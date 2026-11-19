@@ -86,7 +86,7 @@ Die Dropdowns verwenden den Katalogstil und bleiben im Browserfenster. Bei Platz
 
 ## Entwicklung und Prüfung
 
-Entwicklungsabhängigkeiten werden zum erneuten Erzeugen der Formelressourcen benötigt:
+Zum erneuten Erzeugen der Formeln oder der formatierten Quellcode-Auszüge werden Entwicklungsabhängigkeiten benötigt:
 
 ```sh
 bun install --frozen-lockfile
@@ -115,6 +115,39 @@ Die Prüfung kontrolliert Übersetzungen aller drei Sprachen, unveränderte Obje
 
 Zusätzliche Browserprüfungen umfassten alle 131 Einträge je Sprache, blockierte externe Zugriffe, mobile Darstellung, Dropdown-Positionierung, Tastatur-/Touch-Bedienung, gespeicherte Sprachwahl, Audiowiedergabe und WAV-Export. Beim Spiel sind Start und Rendering geprüft; ein vollständiger Spieldurchlauf wurde nicht durchgeführt.
 
+## Bodentextur
+
+Beim Start über Bun erzeugt der Rust/WebAssembly-Kernel die RGBA-Bodenmaske sowie die Detail- und Normaltextur. Falls das Modul nicht geladen oder ausgeführt werden kann, übernimmt der optimierte JavaScript-Generator. Mit `/?ground=js` oder `/?ground=original` lässt sich gezielt eine Vergleichsversion starten.
+
+Die WASM-Datei liegt lokal im Repository und ist direkt einsatzbereit. Zum Neubauen wird Rust mit dem Ziel `wasm32-unknown-unknown` benötigt. Die Prüfung vergleicht jeden RGBA-Wert mit `game.js`. Sie deckt die Bodenmaske bei 512² und 1024² sowie die Detail- und Normaltextur bei 256² und 512² ab.
+
+```sh
+bun run ground:build
+bun run objects:build
+bun run audio:build
+bun run ground:check
+```
+
+Im lokalen Build verwaltet dasselbe WASM-Modul die Kollisionskörper und erzeugt das Navigationsraster. Rust berechnet Wegsuche, Wegpunktglättung, Begehbarkeit und Zufallsziele sowie Sichtlinien, Kollisionsstrahlen, Bodenhöhen, Kopffreiheit und Kapselbewegung mit Spielergravitation. Ein separates Audiomodul erzeugt alle 79 Klänge mit insgesamt 136 Varianten in Rust, einschließlich Musik, Regen, Seegang und Impulsantworten. Längere Berechnungen laufen in einem Browser-Worker. Web Audio übernimmt räumliche Mischung und Wiedergabe. `/?ground=js` nutzt die optimierten JavaScript-Texturen und die ursprünglichen JavaScript-Spielkerne. `/?ground=original` nutzt auch die ursprünglichen Texturgeneratoren. Die eingebettete Altversion kann über `/legacy-v8.html` geladen werden.
+
+Rust berechnet auch die Spielerbewegung, Landung und Schadensregeln, Waffenfeuer und Nachladen, Bewegung und Angriffsphasen von Gull und Hound sowie Relais, Verstärkungen und Holdout-Wellen. Die Browseranbindung verarbeitet Eingaben, Spielereignisse, Benutzeroberfläche und die visuellen Effekte.
+
+`engine/objects.wasm` erzeugt Rotationsprofile, einfache, gefaste und gerundete Quader, Zylinder, Wellprofile, Profilflächen und gebogene Rohrnetze für Spiel und Katalog. Das Modul berechnet auch extrudierte Profile, Gurte, die Geometrie der Plane, Reifen-UVs, Sandsack- und Kartonverformungen sowie geglättete Normalen. Der Katalog lädt das Modul beim Öffnen einer Objektvorschau. Die lesbaren Originalfunktionen werden beim Öffnen des Quellcode-Tabs geladen.
+
+Bei den großen Hafenmodellen berechnet dasselbe Modul die Rumpfpunkte, Normalen und Paneele des Frachtschiffs, Geometrie von Rumpf und Schlauch des Boots sowie gerundete Kranbauteile.
+
+Alle 36 Hafenobjekte nutzen Rust beim Mesh-Aufbau. Das Modul setzt kompatible Geometriebuffer und Dreiecksindizes zusammen, transformiert Positionen und Normalen und berechnet bei Bedarf neue Normalen. Es berechnet die prozedurale Alterung von 19 Modellen sowie die Farben auf den Seitenwänden der drei Containergrößen.
+
+Rust liefert die Szenenpläne für Hof, Tor, Kai und Werkstattobjekte. Es berechnet Containerstapel, Zäune, Kranschienen, Ausrichtung und Collider und legt Materialvarianten, Schatten und Mesh-Gruppen für die statische Szene fest. Relais mit Türen und Rotor, Krantraverse, Radar, Boot und Werkstattlüfter werden in WASM animiert. Three.js setzt die Szenenobjekte, Materialien und Texturen für das Rendering um.
+
+```sh
+bun run kernels:check
+```
+
+## Rust/WASM-Experiment
+
+Tidewatch ist ein eigenständiger Hafenprototyp und läuft über den lokalen Bun-Server. Die Anleitung beschreibt Spielziel, Bedienung und Build. [Tidewatch öffnen](http://127.0.0.1:3000/experiment/index.html) · [Anleitung](experiment/README.md)
+
 ## Projektstruktur
 
 | Pfad | Zweck |
@@ -123,9 +156,11 @@ Zusätzliche Browserprüfungen umfassten alle 131 Einträge je Sprache, blockier
 | `catalog/data.js`, `catalog/latex.js` | Einträge und mathematische Formeln |
 | `catalog/i18n.js`, `catalog/content-i18n.js` | Oberfläche und Inhalte auf Englisch, Deutsch und Chinesisch |
 | `catalog/select.js` | Dropdown-Menüs innerhalb der Seite |
-| `catalog/engine.js`, `catalog/math.js` | Generierte Engine-Exporte und gesetzte Formeln |
+| `catalog/engine.js`, `catalog/math.js`, `catalog/source-code.js` | Generierte Engine-Exporte, gesetzte Formeln und formatierte Quellcode-Auszüge |
 | `catalog/manifest.json` | SHA-256 der Quelle und Fundstellen der Originalfunktionen |
 | `scripts/` | Extraktion, Formelerzeugung und Prüfung |
+| `ground/` | Bodenmasken und Bodentexturen in Rust/WASM und JavaScript |
+| `experiment/` | Tidewatch, der eigenständige Rust/WASM-Prototyp |
 | `index.html`, `game.js`, `ui.css` | Lokale Spielseite, ursprünglicher JavaScript-Bundle und Spielstyles |
 | `assets/`, `licenses/` | Lokale Fonts, KaTeX-Ressourcen und Komponentenlizenzen |
 | `original/`, `source.json` | Originalartefakt, öffentliche Metadaten und Downloadherkunft |

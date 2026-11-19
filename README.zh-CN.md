@@ -86,7 +86,7 @@ PORT=3001 bun run start
 
 ## 开发与验证
 
-重新生成公式资源时需要开发依赖：
+重新生成公式资源或格式化的源代码片段时需要开发依赖：
 
 ```sh
 bun install --frozen-lockfile
@@ -115,6 +115,39 @@ bun run catalog:check
 
 额外的浏览器检查覆盖了每种语言下的全部 131 个条目、阻断外部请求的运行方式、移动端布局、下拉菜单定位、键盘与触控交互、语言选择保存、音频播放和 WAV 导出。游戏部分已验证启动与渲染，尚未进行完整通关测试。
 
+## 地面纹理
+
+通过 Bun 启动时，游戏使用 Rust/WebAssembly 内核生成 RGBA 地面遮罩、细节纹理和法线纹理。如果模块无法加载或运行，则由优化后的 JavaScript 生成器接替。打开 `/?ground=js` 或 `/?ground=original` 可以比较不同实现。
+
+仓库附带可直接使用的 WASM 文件。重新构建需要 Rust 和 `wasm32-unknown-unknown` 目标。检查命令逐个与 `game.js` 比较 RGBA 值，覆盖 512² 和 1024² 的地面遮罩，以及 256² 和 512² 的细节纹理与法线纹理。
+
+```sh
+bun run ground:build
+bun run objects:build
+bun run audio:build
+bun run ground:check
+```
+
+本地版本使用同一个 WASM 模块保存碰撞体并生成导航网格。Rust 负责寻路、路径点平滑、可通行性检测、随机目标采样、视线检测、碰撞射线检测、地面高度查询、站立空间检测、胶囊体移动和玩家重力计算。独立的 Rust/WASM 音频模块生成全部 79 种声音及 136 个变体，包括音乐、雨声、海浪和脉冲响应。较长音频在浏览器 Worker 中生成。Web Audio 负责空间混音和播放。`/?ground=js` 使用优化后的 JavaScript 纹理和原始 JavaScript 游戏内核。`/?ground=original` 也使用原始纹理生成器。可以通过 `/legacy-v8.html` 加载内嵌的早期版本。
+
+Rust 还计算玩家移动、着陆、伤害、武器射击与装填，以及 Gull 和 Hound 的移动和攻击阶段、中继器、增援和坚守模式的波次规则。浏览器端负责输入、游戏事件、用户界面和视觉效果。
+
+`engine/objects.wasm` 为游戏和图鉴生成旋转体、普通、倒角和圆角长方体、圆柱体、波纹轮廓、扫掠曲面和弯曲管道网格。该模块还生成挤出轮廓、绑带和篷布几何体，并计算轮胎 UV 坐标、沙袋和纸箱网格的变形以及平滑法线。图鉴在打开物件预览时加载此模块，在打开源代码选项卡时加载格式化的原始函数。
+
+对于大型港口模型，同一模块计算货船的船体顶点、法线和面板、充气艇的船体和气囊，以及起重机的圆角部件。
+
+全部 36 种港口物件在构建网格时均使用 Rust。该模块合并兼容的几何缓冲区和三角形索引，变换顶点位置和法线，并按需重新计算法线。它还为 19 种模型计算程序化磨损，并为三种集装箱计算侧壁颜色。
+
+Rust 提供堆场、大门、码头和车间道具的场景布置。它计算集装箱堆叠、围栏、起重机轨道、朝向和碰撞体，并为静态场景选择材质变体、阴影设置和网格分组。中继器舱门和转子、起重机吊具、雷达、船只以及车间风扇的动画由 WASM 计算。Three.js 创建渲染所需的场景对象、材质和纹理。
+
+```sh
+bun run kernels:check
+```
+
+## Rust/WASM 实验
+
+Tidewatch 是独立的港口游戏原型，通过本地 Bun 服务器运行。实验指南介绍了游戏目标、操作和构建方法。[打开 Tidewatch](http://127.0.0.1:3000/experiment/index.html) · [实验指南](experiment/README.md)
+
 ## 项目结构
 
 | 路径 | 用途 |
@@ -123,9 +156,11 @@ bun run catalog:check
 | `catalog/data.js`、`catalog/latex.js` | 条目定义与数学公式 |
 | `catalog/i18n.js`、`catalog/content-i18n.js` | 英语、德语与中文界面和内容 |
 | `catalog/select.js` | 页面内下拉菜单 |
-| `catalog/engine.js`、`catalog/math.js` | 生成的引擎导出与公式标记 |
+| `catalog/engine.js`、`catalog/math.js`、`catalog/source-code.js` | 生成的引擎导出、公式标记和格式化的源代码片段 |
 | `catalog/manifest.json` | 源文件 SHA-256 与原始函数位置 |
 | `scripts/` | 提取、公式生成与验证脚本 |
+| `ground/` | Rust/WASM 和 JavaScript 地面遮罩与纹理 |
+| `experiment/` | 独立的 Tidewatch Rust/WASM 原型 |
 | `index.html`、`game.js`、`ui.css` | 本地游戏页面、原始 JavaScript 包与游戏样式 |
 | `assets/`、`licenses/` | 本地字体、KaTeX 资源与组件许可证 |
 | `original/`、`source.json` | 原始工件、公开元数据与下载来源 |

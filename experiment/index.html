@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#222e32">
+  <title>Tidewatch · Rust Harbor</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="../">← Saltline</a>
+    <span class="title">Tidewatch</span>
+    <span id="gpu-backend">Connecting</span>
+  </header>
+
+  <main aria-label="Harbor">
+    <canvas id="harbor" aria-label="Harbor view" tabindex="0"></canvas>
+    <div id="marker" class="marker" aria-hidden="true" hidden><span id="marker-label">Power</span></div>
+
+    <aside class="mission" aria-label="Current objective">
+      <div role="status" aria-atomic="true">
+        <strong id="mission-title">Reach the breaker</strong>
+        <p id="mission-text">Restore power to the harbor controls.</p>
+      </div>
+      <div id="progress" role="progressbar" aria-label="Operation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden></div>
+    </aside>
+
+    <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+      <div class="welcome-card">
+        <p class="location">EMBER REACH</p>
+        <h1 id="welcome-title">Tidewatch</h1>
+        <p>Restore shore power, lift the tide gate and guide the waiting ferry out of the harbor.</p>
+        <button id="enter-harbor" type="button" disabled>Enter harbor <span aria-hidden="true">↗</span></button>
+        <p id="load-status" role="status">Preparing the 3D harbor…</p>
+        <noscript><p>Enable JavaScript to start the WebAssembly module.</p></noscript>
+      </div>
+    </section>
+  </main>
+
+  <footer class="controls" aria-label="Controls">
+    <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Walk</span>
+    <span><kbd>←</kbd><kbd>→</kbd> or drag to turn</span>
+    <span><kbd>E</kbd> Operate</span>
+  </footer>
+
+  <script type="module" src="./boot.js"></script>
+</body>
+</html>
